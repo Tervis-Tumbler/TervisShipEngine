@@ -31,33 +31,37 @@ function Invoke-TervisShipEngineShipWarrantyOrder {
         [Parameter(Mandatory)]$WeightInLB,
         $OriginLocation = "NorthPort_Returns"
     )
+    try {
+        $WarehouseId = Get-TervisShipEngineWarehouseId -Location $OriginLocation
+    
+        $ShipTo = New-TervisShipEngineAddress `
+            -Name $Name `
+            -Phone $Phone `
+            -AddressLine1 $AddressLine1 `
+            -AddressLine2 $AddressLine2 `
+            -AddressLine3 $AddressLine3 `
+            -CityLocality $CityLocality `
+            -StateProvince $StateProvince `
+            -PostalCode $PostalCode `
+            -CountryCode $CountryCode
+    
+        $ServiceCode = Get-TervisShipEngineWarrantyOrderService -WeightInLB $WeightInLB
+    
+        $Carrier = (Get-TervisShipEngineCarriers).Content.carriers.services | 
+        Where-Object service_code -eq $ServiceCode
+    
+        [Array]$Packages = New-TervisShipEnginePackage -WeightInLB $WeightInLB
+    
+        New-TervisShipEngineLabel `
+            -CarrierId $Carrier.carrier_id `
+            -ServiceCode $Carrier.service_code `
+            -ShipTo $ShipTo `
+            -WarehouseId $WarehouseId `
+            -Packages $Packages
+    } catch {
+        "$(Get-Date -Format o)`nInvoke-TervisShipEngineShipWarrantyOrder Error`n$($_.InvocationInfo.PositionMessage)`n$($_.ScriptStackTrace)`n" | Out-File -FilePath "C:\Log\TervisWarrantyFormInternal\log.txt" -Append
 
-    $WarehouseId = Get-TervisShipEngineWarehouseId -Location $OriginLocation
-
-    $ShipTo = New-TervisShipEngineAddress `
-        -Name $Name `
-        -Phone $Phone `
-        -AddressLine1 $AddressLine1 `
-        -AddressLine2 $AddressLine2 `
-        -AddressLine3 $AddressLine3 `
-        -CityLocality $CityLocality `
-        -StateProvince $StateProvince `
-        -PostalCode $PostalCode `
-        -CountryCode $CountryCode
-
-    $ServiceCode = Get-TervisShipEngineWarrantyOrderService -WeightInLB $WeightInLB
-
-    $Carrier = (Get-TervisShipEngineCarriers).Content.carriers.services | 
-    Where-Object service_code -eq $ServiceCode
-
-    [Array]$Packages = New-TervisShipEnginePackage -WeightInLB $WeightInLB
-
-    New-TervisShipEngineLabel `
-        -CarrierId $Carrier.carrier_id `
-        -ServiceCode $Carrier.service_code `
-        -ShipTo $ShipTo `
-        -WarehouseId $WarehouseId `
-        -Packages $Packages
+    }
 
 }
 
@@ -90,6 +94,17 @@ function Invoke-TervisShipEngineAPI {
             Body    = $Body
         } | ConvertTo-Json)
 
+    "$(Get-Date -Format o)`n
+    Invoke-TervisShipEngineAPI Error`n
+    Uri:`n
+    $Uri`n
+    Headers`n
+    $($Headers | ConvertTo-Json)`n
+    Body`n
+    $($Body | ConvertTo-Json)`n
+    " | 
+    Out-File -FilePath "C:\Log\TervisWarrantyFormInternal\log.txt" -Append
+    
     $Response = try {
         Invoke-WebRequest `
             -Uri $Uri `
@@ -131,18 +146,16 @@ function New-TervisShipEngineLabel {
         [Array]$Packages
     )
 
-    $Payload = [PSCustomObject]@{
-        shipment = [PSCustomObject]@{
+    $Payload = @{
+        shipment = @{
             carrier_id   = $CarrierId
             service_code = $ServiceCode
             ship_to      = $ShipTo
             ship_from    = $ShipFrom
             warehouse_id = $WarehouseId
             packages     = $Packages
-        }
-    } | 
-    Remove-HashtableKeysWithEmptyOrNullValues | 
-    ConvertTo-Json -Depth 10 -Compress
+        } | Remove-HashtableKeysWithEmptyOrNullValues
+    } | ConvertTo-Json -Depth 10 -Compress
 
     Invoke-TervisShipEngineAPI -Endpoint "labels" -Method "POST" -Body $Payload
 }
@@ -225,8 +238,8 @@ function Get-TervisShipEngineWarrantyOrderService {
 
     switch ([system.decimal]::Parse($WeightInLB)) {
         { $_ -lt 1 } { return "usps_first_class_mail" }
-        { $_ -le 10 } { return "fedex_smartpost_parcel_select" }
-        { $_ -gt 10 } { return "fedex_home_delivery" }
+        { $_ -le 10 } { return "ups_surepost_1_lb_or_greater" }
+        { $_ -gt 10 } { return "ups_ground" }
         Default { throw "Weight input error" }
     }
 }
