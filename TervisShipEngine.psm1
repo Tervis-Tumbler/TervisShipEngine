@@ -45,7 +45,7 @@ function Invoke-TervisShipEngineShipWarrantyOrder {
             -PostalCode $PostalCode `
             -CountryCode $CountryCode
     
-        $ServiceCode = Get-TervisShipEngineWarrantyOrderService -WeightInLB $WeightInLB
+        $ServiceCode = Get-TervisShipEngineWarrantyOrderService -WeightInLB $WeightInLB -ShipTo $ShipTo
     
         $Carrier = (Get-TervisShipEngineCarriers).Content.carriers.services | 
         Where-Object service_code -eq $ServiceCode
@@ -238,15 +238,28 @@ function Get-TervisShipEngineShipments {
 
 function Get-TervisShipEngineWarrantyOrderService {
     param (
-        $WeightInLB
+        $WeightInLB,
+        $ShipTo
     )
 
-    switch ([system.decimal]::Parse($WeightInLB)) {
-        { $_ -lt 1 } { return "usps_first_class_mail" }
-        { $_ -le 10 } { return "ups_surepost_1_lb_or_greater" }
-        { $_ -gt 10 } { return "ups_ground" }
-        Default { throw "Weight input error" }
+    # Use Regexp to determine if the address is a PO Box
+    $IsPOBox = $ShipTo.address_line1 -match "P\.?O\.?\s?Box"
+
+    if ($IsPOBox) {
+        switch ([system.decimal]::Parse($WeightInLB)) {
+            { $_ -lt 1 } { return "usps_first_class_mail" }
+            { $_ -le 70 } { return "usps_priority_mail" }
+            Default { throw "Weight input error" }
+        }
+    } else {
+        switch ([system.decimal]::Parse($WeightInLB)) {
+            { $_ -lt 1 } { return "usps_first_class_mail" }
+            { $_ -le 10 } { return "ups_surepost_1_lb_or_greater" }
+            { $_ -gt 10 } { return "ups_ground" }
+            Default { throw "Weight input error" }
+        }
     }
+
 }
 
 function Get-TervisShipEngineWarehouseId {
