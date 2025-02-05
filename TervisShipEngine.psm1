@@ -29,7 +29,7 @@ function Invoke-TervisShipEngineShipWarrantyOrder {
         [Parameter(Mandatory)]$PostalCode,
         $CountryCode = "US",
         [Parameter(Mandatory)]$WeightInLB,
-        $OriginLocation = "NorthPort_Returns"
+        $OriginLocation = "Osprey_Returns"
     )
     try {
         $WarehouseId = Get-TervisShipEngineWarehouseId -Location $OriginLocation
@@ -124,6 +124,11 @@ function Invoke-TervisShipEngineAPI {
             StatusCode = $_.Exception.Response.StatusCode.value__
             Content    = $Content
         }
+    }
+
+    if ($Response.StatusCode -ne 200) {
+        
+        throw "$($Responses.StatusCode) $()"
     }
 
     return [PSCustomObject]@{
@@ -247,7 +252,7 @@ function Get-TervisShipEngineWarrantyOrderService {
 function Get-TervisShipEngineWarehouseId {
     param (
         [Parameter(Mandatory)]
-        [ValidateSet("NorthPort_Returns")]
+        [ValidateSet("NorthPort_Returns","Osprey_Returns")]
         $Location
     )
 
